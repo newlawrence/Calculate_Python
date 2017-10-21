@@ -2,7 +2,6 @@ from collections import Iterable, Iterator
 
 from calculate.calculate import ManagedClass
 
-import calculate.exception as exception
 import calculate.calculate as calculate
 
 __all__ = ['Expression']
@@ -44,30 +43,14 @@ class Expression(AbstractExpression):
 
     def __init__(self, handler, cache):
         super().__init__(handler)
+        calculate.make_expression(self)
         self._cache = cache
 
     def __call__(self, *args):
-        needed, provided = (len(self.variables), len(args))
-        if not provided:
-            raise exception.ArgumentsMismatch(
-                f'at least 1 needed argument'
-            )
-        elif provided > 3:
-            raise exception.ArgumentsMismatch(
-                f'{needed} needed argument{"s,".split(",")[int(needed == 1)]} '
-                f'vs {provided} provided'
-            )
-        x0 = args[0]
-        x1 = args[1] if provided > 1 else 0.
-        x2 = args[2] if provided > 2 else 0.
-        return calculate.evaluate_expression(
-            self._handler,
-            provided,
-            *(x0, x1, x2)
-        )
+        return self._evaluate(*args)
 
     def __float__(self):
-        return calculate.evaluate_expression(self._handler, 0, 0., 0., 0.)
+        return self._evaluate()
 
     def __hash__(self):
         return calculate.hash(self._handler)

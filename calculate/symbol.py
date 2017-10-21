@@ -61,19 +61,18 @@ class Lexer:
         return f"<{self.__class__.__name__} {constants}>"
 
 
-class Function(metaclass=ManagedClass):
+class AbstractFunction(metaclass=ManagedClass):
+    pass
+
+
+class Function(AbstractFunction):
+
+    def __init__(self, handler):
+        super().__init__(handler)
+        calculate.make_function(self)
 
     def __call__(self, *args):
-        needed, provided = (self.arguments, len(args))
-        if not 0 < provided < 4:
-            raise exception.ArgumentsMismatch(
-                f'{needed} needed argument{"s,".split(",")[int(needed == 1)]} '
-                f'vs {provided} provided'
-            )
-        x0 = args[0]
-        x1 = args[1] if provided > 1 else 0.
-        x2 = args[2] if provided > 2 else 0.
-        return calculate.evaluate_function(self._handler, provided, x0, x1, x2)
+        return self._evaluate(*args)
 
     def __repr__(self):
         return f"<{self.__class__.__name__} {{'arguments': {self.arguments}}}>"

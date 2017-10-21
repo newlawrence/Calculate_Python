@@ -38,6 +38,16 @@ BODY = '''
 STRING_BODY = BODY.replace('...', DEFAULT_STRING)
 WHOLE_BODY = BODY.replace('...', THROW_STRING)
 
+EVALUATE = '''
+def _evaluate(self, {signature}):
+    return lib._calculate_evaluate_{kind}(
+        self._error._handler.handler,
+        self._handler.handler,
+        {argc},
+        {arguments}
+    )
+'''
+
 SPEC_REGEX = re.compile(
     r'^(?P<result>\w+(?:\s\w+)?(?:\s\*)?)(?:\s)?'
     r'_calculate_(?P<name>\w+)'
@@ -185,12 +195,29 @@ class LibraryManager(ModuleType):
             else:
                 result = result.format('', '')
 
-            LibraryManager.build(
+            cls.build(
                 '\n'.join([header, *adapters, BODY, result]),
                 namespace=instance.__dict__,
                 instance=instance
             )
         return instance
+
+    def _make(self, instance, kind, argc):
+        signature = [f'x{i}' for i in range(argc)]
+        arguments = signature + ['0.' for i in range(3 - argc)]
+        signature, arguments = map(', '.join, (signature, arguments))
+        setattr(instance, '_error', self.Error())
+        self.build(
+            EVALUATE.format(**locals()),
+            namespace=instance.__dict__,
+            instance=instance
+        )
+
+    def make_function(self, function):
+        self._make(function, 'function', function.arguments)
+
+    def make_expression(self, expression):
+        self._make(expression, 'expression', len(expression.variables))
 
     @staticmethod
     def build(code, *args, **kwargs):

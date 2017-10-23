@@ -121,7 +121,9 @@ class BaseParser(ManagedClass):
         return Expression(
             calculate.replace(
                 self._handler,
-                *(one._handler, branch, another._handler),
+                one._handler,
+                branch,
+                another._handler,
                 ','.join(variables)
             ),
             self._backup()

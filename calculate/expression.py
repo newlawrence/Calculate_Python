@@ -41,7 +41,7 @@ class Expression(ManagedClass):
         super().__init__(handler)
         self._error = calculate.Error()
         self._cache = cache
-        self._evaluate = MethodType(self._make(), self)
+        self._evaluate = MethodType(self._get_evaluation_function(), self)
 
     def __call__(self, *args):
         return self._evaluate(*args)
@@ -86,7 +86,7 @@ class Expression(ManagedClass):
             f"}}>"
         )
 
-    def _make(self):
+    def _get_evaluation_function(self):
         return {
             0: lambda self:
                 calculate.evaluate_expression(self._handler, 0, 0., 0., 0.),

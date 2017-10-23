@@ -67,7 +67,7 @@ class Function(ManagedClass):
     def __init__(self, handler):
         super().__init__(handler)
         self._error = calculate.Error()
-        self._evaluate = MethodType(self._make(), self)
+        self._evaluate = MethodType(self._get_evaluation_function(), self)
 
     def __call__(self, *args):
         return self._evaluate(*args)
@@ -76,7 +76,7 @@ class Function(ManagedClass):
         name = self.__class__.__name__
         return f"<{name} {{'arguments': {self.arguments}}}>"
 
-    def _make(self):
+    def _get_evaluation_function(self):
         return {
             1: lambda self, x0:
                 calculate.evaluate_function(self._handler, 1, x0, 0., 0.),

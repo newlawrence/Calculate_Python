@@ -1,7 +1,7 @@
 from collections import defaultdict
 from enum import Enum, unique
 from types import ModuleType, MethodType
-from abc import ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 
 import sys
 import inspect
@@ -13,15 +13,20 @@ from calculate._calculate import ffi, lib
 import calculate.exception as exception
 
 
-DEFAULT_BODY = '    result = self.lib.{original_name}({signature})'
+DEFAULT_BODY = '''
+    result = self.lib.{original_name}({signature})
+'''
+NO_THROW_BODY = '''
+    result = self.lib.{original_name}(self._dummy_error, {signature})
+'''
 THROW_BODY = '''
-    with self.Error() as error:
+    with Error() as error:
         result = self.lib.{original_name}(error.handler, {signature})
 '''
 
 DEFAULT_STRING = 'self.lib.{original_name}({signature}, string, chars)'
 THROW_STRING = '''
-        with self.Error() as error:
+        with Error() as error:
             self.lib.{original_name}(error.handler, {signature}, string, chars)
 '''
 BODY = '''
@@ -37,16 +42,6 @@ BODY = '''
 '''
 STRING_BODY = BODY.replace('...', DEFAULT_STRING)
 WHOLE_BODY = BODY.replace('...', THROW_STRING)
-
-EVALUATE = '''
-def _evaluate(self, {signature}):
-    return lib._calculate_evaluate_{kind}(
-        self._error._handler.handler,
-        self._handler.handler,
-        {argc},
-        {arguments}
-    )
-'''
 
 SPEC_REGEX = re.compile(
     r'^(?P<result>\w+(?:\s\w+)?(?:\s\*)?)(?:\s)?'
@@ -103,11 +98,16 @@ class Handler:
         self._free(self)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {{'kind': {self._kind.title()}}}>"
+        name = self.__class__.__name__
+        return f"<{name} {{'kind': {self._kind.title()}}}>"
 
     @property
     def handler(self):
         return self._handler
+
+    @property
+    def kind(self):
+        return self._kind
 
 
 class LibraryManager(ModuleType):
@@ -116,6 +116,7 @@ class LibraryManager(ModuleType):
         instance = super().__new__(cls, name)
         setattr(instance, 'ffi', ffi)
         setattr(instance, 'lib', lib)
+        setattr(instance, '_dummy_error', lib._calculate_get_error())
 
         for original_name in [
                 name for name in dir(lib)
@@ -127,13 +128,14 @@ class LibraryManager(ModuleType):
             result, name, signature = re.match(SPEC_REGEX, spec).groups()
             signature = re.sub(POINTER_REGEX, 'void *', signature)
 
-            throw = False
+            throw, nothrow = (False, False)
             if (
                     signature.startswith('struct calculate_Error') and
                     len(signature) > 31 and
                     name != 'message'
             ):
-                signature, throw = (signature[31:], True)
+                signature = signature[31:]
+                throw, nothrow = (True, 'evaluate' in original_name)
 
             stringify = False
             if result == 'void' and signature.endswith('char *, size_t'):
@@ -177,13 +179,15 @@ class LibraryManager(ModuleType):
 
             header = f'def {name}(self, {signature}):'
             if stringify and throw:
-                BODY = WHOLE_BODY.format(**locals())
+                body = WHOLE_BODY.format(**locals())
             elif stringify:
-                BODY = STRING_BODY.format(**locals())
+                body = STRING_BODY.format(**locals())
+            elif nothrow:
+                body = NO_THROW_BODY.format(**locals())
             elif throw:
-                BODY = THROW_BODY.format(**locals())
+                body = THROW_BODY.format(**locals())
             else:
-                BODY = DEFAULT_BODY.format(**locals())
+                body = DEFAULT_BODY.format(**locals())
 
             result = '    return {}(result{})'
             if handlingfy:
@@ -195,69 +199,25 @@ class LibraryManager(ModuleType):
             else:
                 result = result.format('', '')
 
-            cls.build(
-                '\n'.join([header, *adapters, BODY, result]),
-                namespace=instance.__dict__,
-                instance=instance
-            )
-        return instance
-
-    def _make(self, instance, kind, argc):
-        signature = [f'x{i}' for i in range(argc)]
-        arguments = signature + ['0.' for i in range(3 - argc)]
-        signature, arguments = map(', '.join, (signature, arguments))
-        setattr(instance, '_error', self.Error())
-        self.build(
-            EVALUATE.format(**locals()),
-            namespace=instance.__dict__,
-            instance=instance
-        )
-
-    def make_function(self, function):
-        self._make(function, 'function', function.arguments)
-
-    def make_expression(self, expression):
-        self._make(expression, 'expression', len(expression.variables))
-
-    @staticmethod
-    def build(code, *args, **kwargs):
-        namespace = kwargs['namespace']
-        instance = kwargs.get('instance')
-        names = set(namespace.keys())
-        if args:
-            code = code.format(*args)
-        exec(textwrap.dedent(code), globals(), namespace)
-        if instance is not None:
+            namespace=instance.__dict__
+            names = set(namespace.keys())
+            code = '\n'.join([header, *adapters, body, result])
+            exec(textwrap.dedent(code), globals(), namespace)
             name = (set(namespace.keys()) - names).pop()
             namespace[name] = MethodType(namespace[name], instance)
+        return instance
 
 
-calculate = LibraryManager(__name__)
+class ManagedClass(ABC):
+
+    @abstractmethod
+    def __init__(self, handler):
+        self._handler = handler
+        if not getattr(calculate, f'check_{handler.kind}')(self._handler):
+            raise ValueError('Invalid resource handler')
 
 
-class ManagedClass(ABCMeta):
-
-    _init = '''
-        def __init__(self, handler):
-            self._handler = handler
-            if not calculate.check_{}(self._handler):
-                raise ValueError('Invalid resource handler')
-    '''
-
-    def __new__(mcs, name, bases, attrs):
-        if not bases:
-            sub = name.replace('Abstract', '').lower()
-            calculate.build(mcs._init, sub, namespace=attrs)
-            if name.startswith('Abstract'):
-                attrs['__init__'] = abstractmethod(attrs['__init__'])
-        return super().__new__(mcs, name, bases, attrs)
-
-
-class AbstractError(metaclass=ManagedClass):
-    pass
-
-
-class Error(AbstractError):
+class Error(ManagedClass):
 
     def __init__(self):
         super().__init__(calculate.get_error())
@@ -272,8 +232,9 @@ class Error(AbstractError):
             exception.throw(calculate.message(self._handler))
 
     def __repr__(self):
+        name = self.__class__.__name__
         return (
-            f"<{self.__class__.__name__} {{"
+            f"<{name} {{"
             f"'status': {self.status}, "
             f"'message': '{self.message}'"
             f"}}>"
@@ -288,6 +249,7 @@ class Error(AbstractError):
         return calculate.message(self._handler)
 
 
+calculate = LibraryManager(__name__)
 setattr(calculate, 'Symbol', Symbol)
 setattr(calculate, 'Associativity', Associativity)
 setattr(calculate, 'Handler', Handler)

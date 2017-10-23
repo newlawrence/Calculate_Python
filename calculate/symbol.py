@@ -1,4 +1,5 @@
 from collections import Iterable, MutableMapping
+from types import MethodType
 
 import inspect
 import re
@@ -20,73 +21,85 @@ __all__ = [
 
 class Lexer:
 
-    _property = '''
-        def {}(self):
-            return self._constants["{}"]
-    '''
-
-    def __new__(cls):
-        constants = {
-            'left': ffi.string(lib.calculate_left_token).decode(),
-            'right': ffi.string(lib.calculate_right_token).decode(),
-            'decimal': ffi.string(lib.calculate_decimal_token).decode(),
-            'separator': ffi.string(lib.calculate_separator_token).decode(),
-            'number_regex':
-                re.compile(ffi.string(lib.calculate_number_regex).decode()),
-            'name_regex':
-                re.compile(ffi.string(lib.calculate_name_regex).decode()),
-            'symbol_regex':
-                re.compile(ffi.string(lib.calculate_symbol_regex).decode()),
-            'tokenizer_regex':
-                re.compile(ffi.string(lib.calculate_tokenizer_regex).decode())
-        }
-        attrs = {}
-        for name in constants.keys():
-            calculate.build(
-                cls._property,
-                *(name, name),
-                namespace=attrs
-            )
-            setattr(cls, name, property(attrs[name]))
-        instance = super().__new__(cls)
-        setattr(instance, '_constants', constants)
-        return instance
-
     def __repr__(self):
+        name = self.__class__.__name__
         constants = repr({
-            name: value
-            for name, value in self._constants.items()
-            if not hasattr(value, 'pattern')
+            name: getattr(self, name)
+            for name in ['left', 'right', 'decimal', 'separator']
         })
-        return f"<{self.__class__.__name__} {constants}>"
+        return f"<{name} {constants}>"
+
+    @property
+    def left(self):
+        return ffi.string(lib.calculate_left_token).decode()
+
+    @property
+    def right(self):
+        return ffi.string(lib.calculate_right_token).decode()
+
+    @property
+    def decimal(self):
+        return ffi.string(lib.calculate_decimal_token).decode()
+
+    @property
+    def separator(self):
+        return ffi.string(lib.calculate_separator_token).decode()
+
+    @property
+    def number_regex(self):
+        return re.compile(ffi.string(lib.calculate_number_regex).decode())
+
+    @property
+    def name_regex(self):
+        return re.compile(ffi.string(lib.calculate_name_regex).decode())
+
+    @property
+    def symbol_regex(self):
+        return re.compile(ffi.string(lib.calculate_symbol_regex).decode())
+
+    @property
+    def tokenizer_regex(self):
+        return re.compile(ffi.string(lib.calculate_tokenizer_regex).decode())
 
 
-class AbstractFunction(metaclass=ManagedClass):
-    pass
-
-
-class Function(AbstractFunction):
+class Function(ManagedClass):
 
     def __init__(self, handler):
         super().__init__(handler)
-        calculate.make_function(self)
+        self._error = calculate.Error()
+        self._evaluate = MethodType(self._make(), self)
 
     def __call__(self, *args):
         return self._evaluate(*args)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {{'arguments': {self.arguments}}}>"
+        name = self.__class__.__name__
+        return f"<{name} {{'arguments': {self.arguments}}}>"
+
+    def _make(self):
+        return {
+            1: lambda self, x0:
+                calculate.evaluate_function(self._handler, 1, x0, 0., 0.),
+            2: lambda self, x0, x1:
+                calculate.evaluate_function(self._handler, 2, x0, x1, 0.),
+            3: lambda self, x0, x1, x2:
+                calculate.evaluate_function(self._handler, 3, x0, x1, x2)
+        }[self.arguments]
 
     @property
     def arguments(self):
         return calculate.arguments(self._handler)
 
 
-class Operator(metaclass=ManagedClass):
+class Operator(ManagedClass):
+
+    def __init__(self, handler):
+        super().__init__(handler)
 
     def __repr__(self):
+        name = self.__class__.__name__
         return (
-            f"<{self.__class__.__name__} {{"
+            f"<{name} {{"
             f"'alias': '{self.alias}', "
             f"'precedence': {self.precedence}, "
             f"'associativity': {self.associativity}"
@@ -167,7 +180,8 @@ class SymbolFactory(MutableMapping):
 
     def __repr__(self):
         keys = repr(list(self._factory.keys()))
-        return f"<{self.__class__.__name__} {keys}>"
+        name = self.__class__.__name__
+        return f"<{name} {keys}>"
 
 
 class CallableFactory(SymbolFactory):
@@ -219,9 +233,10 @@ class FunctionFactory(CallableFactory):
     class Wrapper:
 
         def __init__(self, parser, kind, token, *args):
+            name = self.__class__.__name__
             if len(args) != 1:
                 raise TypeError(
-                    f"{self.__class__.__name__}() takes 1 positional argument"
+                    f"{name}() takes 1 positional argument"
                     f" but {len(args)} were given"
                 )
             self._function = args[-1]
@@ -254,9 +269,10 @@ class OperatorFactory(CallableFactory):
     class Wrapper:
 
         def __init__(self, parser, kind, token, *args):
+            name = self.__class__.__name__
             if len(args) != 4:
                 raise TypeError(
-                    f"{self.__class__.__name__}() takes 4 positional arguments"
+                    f"{name}() takes 4 positional arguments"
                     f" but {len(args)} were given"
                 )
             self._function = args[-1]

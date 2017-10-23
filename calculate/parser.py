@@ -8,11 +8,7 @@ import calculate.calculate as calculate
 __all__ = ['Parser', 'DefaultParser']
 
 
-class AbstractParser(metaclass=ManagedClass):
-    pass
-
-
-class BaseParser(AbstractParser):
+class BaseParser(ManagedClass):
 
     def __init__(self, handler):
         super().__init__(handler)
@@ -21,8 +17,9 @@ class BaseParser(AbstractParser):
         self._operators = OperatorFactory(self._handler)
 
     def __repr__(self):
+        name = self.__class__.__name__
         return (
-            f"<{self.__class__.__name__} {{"
+            f"<{name} {{"
             f"'constants': {len(self.constants)}, "
             f"'functions': {len(self.functions)}, "
             f"'operators': {len(self.operators)}"

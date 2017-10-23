@@ -1,4 +1,5 @@
 from collections import Iterable, Iterator
+from types import MethodType
 
 from calculate.calculate import ManagedClass
 
@@ -7,14 +8,7 @@ import calculate.calculate as calculate
 __all__ = ['Expression']
 
 
-class AbstractExpression(metaclass=ManagedClass):
-    pass
-
-
-Iterable.register(AbstractExpression)
-
-
-class Expression(AbstractExpression):
+class Expression(ManagedClass):
 
     class ExpressionIterator(Iterator):
 
@@ -35,16 +29,19 @@ class Expression(AbstractExpression):
             return expression
 
         def __repr__(self):
+            name = self.__class__.__name__
             return (
-                f"<{self.__class__.__name__} {{"
+                f"<{name} {{"
+                f"'branch': {self._branch}, "
                 f"'branches': {self._branches}"
                 f"}}>"
             )
 
     def __init__(self, handler, cache):
         super().__init__(handler)
-        calculate.make_expression(self)
+        self._error = calculate.Error()
         self._cache = cache
+        self._evaluate = MethodType(self._make(), self)
 
     def __call__(self, *args):
         return self._evaluate(*args)
@@ -65,8 +62,9 @@ class Expression(AbstractExpression):
         return calculate.branches(self._handler)
 
     def __getitem__(self, index):
+        name = self.__class__.__name__
         if index >= len(self):
-            raise IndexError(f'{self.__class__.__name__} index out of range')
+            raise IndexError(f'{name} index out of range')
         return Expression(
             calculate.get_node(calculate.nodes(self._handler), index),
             self._cache
@@ -80,12 +78,25 @@ class Expression(AbstractExpression):
         )
 
     def __repr__(self):
+        name = self.__class__.__name__
         return (
-            f"<{self.__class__.__name__} {{"
+            f"<{name} {{"
             f"'expression': '{self.infix}', "
             f"'variables': {repr(self.variables)}"
             f"}}>"
         )
+
+    def _make(self):
+        return {
+            0: lambda self:
+                calculate.evaluate_expression(self._handler, 0, 0., 0., 0.),
+            1: lambda self, x0:
+                calculate.evaluate_expression(self._handler, 1, x0, 0., 0.),
+            2: lambda self, x0, x1:
+                calculate.evaluate_expression(self._handler, 2, x0, x1, 0.),
+            3: lambda self, x0, x1, x2:
+                calculate.evaluate_expression(self._handler, 3, x0, x1, x2)
+        }[len(self.variables)]
 
     @property
     def token(self):
@@ -107,3 +118,6 @@ class Expression(AbstractExpression):
     def variables(self):
         variables = calculate.variables(self._handler)
         return variables.split(',') if variables else []
+
+
+Iterable.register(Expression)

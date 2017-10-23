@@ -199,7 +199,7 @@ class LibraryManager(ModuleType):
             else:
                 result = result.format('', '')
 
-            namespace=instance.__dict__
+            namespace = instance.__dict__
             names = set(namespace.keys())
             code = '\n'.join([header, *adapters, body, result])
             exec(textwrap.dedent(code), globals(), namespace)

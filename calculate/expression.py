@@ -1,6 +1,8 @@
 from collections import Iterable, Iterator
 from types import MethodType
 
+import functools
+
 from calculate.calculate import ManagedClass
 
 import calculate.calculate as calculate
@@ -41,13 +43,25 @@ class Expression(ManagedClass):
         super().__init__(handler)
         self._error = calculate.Error()
         self._cache = cache
-        self._evaluate = MethodType(self._get_evaluation_function(), self)
+
+        evaluate = {
+            0: lambda self:
+                calculate.evaluate_expression(self._handler, 0, 0., 0., 0.),
+            1: lambda self, x0:
+                calculate.evaluate_expression(self._handler, 1, x0, 0., 0.),
+            2: lambda self, x0, x1:
+                calculate.evaluate_expression(self._handler, 2, x0, x1, 0.),
+            3: lambda self, x0, x1, x2:
+                calculate.evaluate_expression(self._handler, 3, x0, x1, x2)
+        }[len(self.variables)]
+        evaluate = MethodType(functools.wraps(self._evaluate)(evaluate), self)
+        setattr(self, '_evaluate', evaluate)
 
     def __call__(self, *args):
         return self._evaluate(*args)
 
     def __float__(self):
-        return self._evaluate()
+        return calculate.evaluate_expression(self._handler, 0, 0., 0., 0.)
 
     def __hash__(self):
         return calculate.hash(self._handler)
@@ -86,17 +100,8 @@ class Expression(ManagedClass):
             f"}}>"
         )
 
-    def _get_evaluation_function(self):
-        return {
-            0: lambda self:
-                calculate.evaluate_expression(self._handler, 0, 0., 0., 0.),
-            1: lambda self, x0:
-                calculate.evaluate_expression(self._handler, 1, x0, 0., 0.),
-            2: lambda self, x0, x1:
-                calculate.evaluate_expression(self._handler, 2, x0, x1, 0.),
-            3: lambda self, x0, x1, x2:
-                calculate.evaluate_expression(self._handler, 3, x0, x1, x2)
-        }[len(self.variables)]
+    def _evaluate(self):
+        pass
 
     @property
     def token(self):

@@ -1,6 +1,7 @@
 from collections import Iterable, MutableMapping
 from types import MethodType
 
+import functools
 import inspect
 import re
 
@@ -67,7 +68,17 @@ class Function(ManagedClass):
     def __init__(self, handler):
         super().__init__(handler)
         self._error = calculate.Error()
-        self._evaluate = MethodType(self._get_evaluation_function(), self)
+
+        evaluate = {
+            1: lambda self, x0:
+                calculate.evaluate_function(self._handler, 1, x0, 0., 0.),
+            2: lambda self, x0, x1:
+                calculate.evaluate_function(self._handler, 2, x0, x1, 0.),
+            3: lambda self, x0, x1, x2:
+                calculate.evaluate_function(self._handler, 3, x0, x1, x2)
+        }[self.arguments]
+        evaluate = MethodType(functools.wraps(self._evaluate)(evaluate), self)
+        setattr(self, '_evaluate', evaluate)
 
     def __call__(self, *args):
         return self._evaluate(*args)
@@ -76,15 +87,8 @@ class Function(ManagedClass):
         name = self.__class__.__name__
         return f"<{name} {{'arguments': {self.arguments}}}>"
 
-    def _get_evaluation_function(self):
-        return {
-            1: lambda self, x0:
-                calculate.evaluate_function(self._handler, 1, x0, 0., 0.),
-            2: lambda self, x0, x1:
-                calculate.evaluate_function(self._handler, 2, x0, x1, 0.),
-            3: lambda self, x0, x1, x2:
-                calculate.evaluate_function(self._handler, 3, x0, x1, x2)
-        }[self.arguments]
+    def _evaluate(self):
+        pass
 
     @property
     def arguments(self):

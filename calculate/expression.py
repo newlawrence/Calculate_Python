@@ -61,7 +61,7 @@ class Expression(ManagedClass):
         return self._evaluate(*args)
 
     def __float__(self):
-        return calculate.evaluate_expression(self._handler, 0, 0., 0., 0.)
+        return self._evaluate()
 
     def __hash__(self):
         return calculate.hash(self._handler)

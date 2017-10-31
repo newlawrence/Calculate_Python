@@ -27,7 +27,13 @@ ffi = cffi.FFI()
 ffi.cdef(header)
 ffi.set_source(
     'calculate._calculate', r'#include "calculate.h"',
-    sources=['source/binding.cpp'],
+    sources=[
+        'source/expression.cpp',
+        'source/handler.cpp',
+        'source/lexer.cpp',
+        'source/parser.cpp',
+        'source/symbol.cpp'
+    ],
     libraries=['c++'],
     include_dirs=['include'],
     extra_compile_args=[

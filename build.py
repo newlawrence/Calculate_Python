@@ -46,7 +46,7 @@ ffi.set_source(
     ],
     libraries=[CPPLIB],
     include_dirs=['include'],
-    extra_compile_args=[CPPARGS],
+    extra_compile_args=CPPARGS,
     source_extension='.cpp'
 )
 

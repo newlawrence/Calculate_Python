@@ -1,6 +1,15 @@
 import re
-import os
+import platform
+
 import cffi
+
+
+CPPLIB = 'MSVCRT' if platform.system() == 'Windows' else 'c++'
+CPPARGS = {
+    'Linux': ['-std=c++14', '-stdlib=libstdc++'],
+    'Darwin': ['-std=c++14', '-stdlib=libc++'],
+    'Windows': ['/std:c++14', '/TP']
+}[platform.system()]
 
 
 with open('include/calculate.h', 'r') as handler:
@@ -26,7 +35,8 @@ extern "Python+C" double _calculate_callback3(void*, double, double, double);
 ffi = cffi.FFI()
 ffi.cdef(header)
 ffi.set_source(
-    'calculate._calculate', r'#include "calculate.h"',
+    'calculate._calculate',
+    r'#include "calculate.h"',
     sources=[
         'source/expression.cpp',
         'source/handler.cpp',
@@ -34,21 +44,12 @@ ffi.set_source(
         'source/parser.cpp',
         'source/symbol.cpp'
     ],
-    libraries=['c++'],
+    libraries=[CPPLIB],
     include_dirs=['include'],
-    extra_compile_args=[
-        '-std=c++14',
-        '-pedantic',
-        '-stdlib=libc++',
-        '-Wall',
-        '-Werror'
-    ],
+    extra_compile_args=[CPPARGS],
     source_extension='.cpp'
 )
 
 
 if __name__ == '__main__':
     ffi.compile(verbose=True)
-    os.remove('calculate/_calculate.cpp')
-    os.remove('calculate/_calculate.o')
-    os.remove('source/binding.o')

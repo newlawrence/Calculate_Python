@@ -17,35 +17,35 @@ class Lexer:
 
     @property
     def left(self):
-        return ffi.string(lib.calculate_left_token).decode()
+        return ffi.string(lib.calculate_left_token()).decode()
 
     @property
     def right(self):
-        return ffi.string(lib.calculate_right_token).decode()
+        return ffi.string(lib.calculate_right_token()).decode()
 
     @property
     def decimal(self):
-        return ffi.string(lib.calculate_decimal_token).decode()
+        return ffi.string(lib.calculate_decimal_token()).decode()
 
     @property
     def separator(self):
-        return ffi.string(lib.calculate_separator_token).decode()
+        return ffi.string(lib.calculate_separator_token()).decode()
 
     @property
     def number_regex(self):
-        return re.compile(ffi.string(lib.calculate_number_regex).decode())
+        return re.compile(ffi.string(lib.calculate_number_regex()).decode())
 
     @property
     def name_regex(self):
-        return re.compile(ffi.string(lib.calculate_name_regex).decode())
+        return re.compile(ffi.string(lib.calculate_name_regex()).decode())
 
     @property
     def symbol_regex(self):
-        return re.compile(ffi.string(lib.calculate_symbol_regex).decode())
+        return re.compile(ffi.string(lib.calculate_symbol_regex()).decode())
 
     @property
     def tokenizer_regex(self):
-        return re.compile(ffi.string(lib.calculate_tokenizer_regex).decode())
+        return re.compile(ffi.string(lib.calculate_tokenizer_regex()).decode())
 
 
 Lexer = Lexer()
